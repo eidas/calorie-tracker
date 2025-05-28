@@ -68,18 +68,18 @@
 ### 2.3 技術スタック
 
 #### 2.3.1 フロントエンド
-- クロスプラットフォームフレームワーク: React Native または Flutter
-- 状態管理: Redux/MobX (React Native) または Provider/Bloc (Flutter)
-- UIコンポーネントライブラリ: React Native Paper または Flutter Material Components
-- グラフ表示: React Native Chart Kit または FL Chart
+- クロスプラットフォームフレームワーク: Flutter
+- 状態管理: Provider/Bloc
+- UIコンポーネントライブラリ: Flutter Material Components
+- グラフ表示: FL Chart
 
 #### 2.3.2 バックエンド（ローカル）
-- データベース: SQLite または Realm
-- ローカルストレージ: AsyncStorage/SharedPreferences
+- データベース: SQLite
+- ローカルストレージ: SharedPreferences
 
 #### 2.3.3 バックエンド（クラウド・オプション）
-- Firebase Firestore または AWS Amplify
-- 認証: Firebase Authentication または AWS Cognito
+- Firebase Firestore
+- 認証: Firebase Authentication
 
 ## 3. データモデル
 
