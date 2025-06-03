@@ -48,24 +48,24 @@
 
 ### 2.1 フレームワークと言語
 
-- **フロントエンドフレームワーク**: React Native
-- **言語**: TypeScript
-- **スタイリング**: React Native StyleSheet
-- **状態管理**: Redux Toolkit
-- **ナビゲーション**: React Navigation
-- **ローカルストレージ**: Realm Database
-- **グラフ表示**: Victory Native
-- **フォーム管理**: React Hook Form
-- **バリデーション**: Yup
-- **国際化**: i18next
-- **テスト**: Jest, React Native Testing Library
+- **フロントエンドフレームワーク**: Flutter
+- **言語**: Dart
+- **スタイリング**: Flutter Material Design
+- **状態管理**: Provider/Bloc
+- **ナビゲーション**: Flutter Navigator
+- **ローカルストレージ**: SQLite
+- **グラフ表示**: FL Chart
+- **フォーム管理**: Flutter Form widgets
+- **バリデーション**: Flutter Validators
+- **国際化**: Flutter Intl
+- **テスト**: flutter_test, integration_test, flutter_driver
 
 ### 2.2 開発ツール
 
-- **パッケージ管理**: Yarn
-- **ビルドツール**: Metro
-- **コード品質**: ESLint, Prettier
-- **型チェック**: TypeScript
+- **パッケージ管理**: pub
+- **ビルドツール**: Flutter build
+- **コード品質**: dart analyze, dart format
+- **型チェック**: Dart
 - **CI/CD**: GitHub Actions
 - **デバッグ**: Flipper
 
@@ -74,30 +74,41 @@
 ### 3.1 ディレクトリ構造
 
 ```
-src/
+lib/
+├── main.dart               # エントリーポイント
+├── app.dart                # アプリケーションのルートウィジェット
 ├── assets/                 # 画像、フォント、その他静的リソース
-├── components/             # 再利用可能なUIコンポーネント
-│   ├── common/             # 汎用コンポーネント
-│   ├── food/               # 食品関連コンポーネント
-│   ├── entry/              # 食事記録関連コンポーネント
-│   ├── weight/             # 体重関連コンポーネント
-│   └── stats/              # 統計関連コンポーネント
-├── screens/                # 画面コンポーネント
-│   ├── auth/               # 認証関連画面
-│   ├── main/               # メイン画面
-│   └── settings/           # 設定関連画面
-├── navigation/             # ナビゲーション設定
-├── store/                  # Redux状態管理
-├── services/               # APIサービス
-├── database/               # ローカルデータベース
-├── utils/                  # ユーティリティ関数
-├── hooks/                  # カスタムフック
+├── config/                 # アプリ設定
 ├── constants/              # 定数定義
-├── types/                  # 型定義
-├── i18n/                   # 国際化
-├── theme/                  # テーマ設定
-├── App.tsx                 # アプリケーションのルートコンポーネント
-└── index.js                # エントリーポイント
+├── data/                   # データレイヤー
+│   ├── models/             # データモデル
+│   ├── providers/          # データプロバイダー
+│   ├── repositories/       # リポジトリ実装
+│   └── services/           # APIサービス
+├── domain/                 # ドメインレイヤー（ビジネスロジック）
+│   ├── entities/           # ビジネスエンティティ
+│   ├── repositories/       # リポジトリインターフェース
+│   └── usecases/           # ビジネスユースケース
+├── l10n/                   # 国際化
+├── presentation/           # UIレイヤー
+│   ├── pages/              # 完全なページ
+│   ├── screens/            # 画面ウィジェット
+│   │   ├── auth/           # 認証関連画面
+│   │   ├── main/           # メイン画面
+│   │   ├── food/           # 食品関連画面
+│   │   ├── weight/         # 体重関連画面
+│   │   └── settings/       # 設定関連画面
+│   ├── widgets/            # 再利用可能なウィジェット
+│   │   ├── common/         # 汎用ウィジェット
+│   │   ├── food/           # 食品関連ウィジェット
+│   │   ├── entry/          # 食事記録関連ウィジェット
+│   │   ├── weight/         # 体重関連ウィジェット
+│   │   └── stats/          # 統計関連ウィジェット
+│   └── blocs/              # 状態管理（Bloc/Provider）
+├── routes/                 # ナビゲーション/ルーティング
+├── theme/                  # アプリテーマ
+├── utils/                  # ユーティリティ関数
+└── pubspec.yaml            # 依存関係設定
 ```
 
 ### 3.2 アーキテクチャパターン
@@ -108,10 +119,10 @@ src/
    - プレゼンテーションコンポーネント：UI表示のみを担当
    - コンテナコンポーネント：ロジックとデータ管理を担当
 
-2. **Flux/Reduxアーキテクチャ**：
+2. **Provider/Blocアーキテクチャ**：
    - 単方向データフロー
    - 予測可能な状態管理
-   - アクションによる状態変更
+   - イベントによる状態変更
 
 3. **リポジトリパターン**：
    - データアクセスの抽象化
@@ -327,29 +338,39 @@ AppNavigator
 
 ## 6. 状態管理設計
 
-### 6.1 Reduxストア構造
+### 6.1 Provider/Bloc構造
 
 ```
-store/
-├── store.ts                # ストア設定
-├── hooks.ts                # カスタムフック
-└── slices/                 # 機能別スライス
-    ├── authSlice.ts        # 認証状態管理
-    ├── userSlice.ts        # ユーザー情報管理
-    ├── foodSlice.ts        # 食品データ管理
-    ├── entrySlice.ts       # 食事記録管理
-    ├── weightSlice.ts      # 体重記録管理
-    └── syncSlice.ts        # 同期状態管理
+lib/
+├── presentation/
+│   └── blocs/              # 状態管理（Bloc）
+│       ├── auth/           # 認証状態管理
+│       │   ├── auth_bloc.dart
+│       │   ├── auth_event.dart
+│       │   └── auth_state.dart
+│       ├── user/           # ユーザー情報管理
+│       ├── food/           # 食品データ管理
+│       ├── entry/          # 食事記録管理
+│       ├── weight/         # 体重記録管理
+│       └── sync/           # 同期状態管理
+└── data/
+    └── providers/          # データプロバイダー（Provider）
+        ├── auth_provider.dart
+        ├── user_provider.dart
+        ├── food_provider.dart
+        ├── entry_provider.dart
+        ├── weight_provider.dart
+        └── sync_provider.dart
 ```
 
-### 6.2 主要スライス機能
+### 6.2 主要Bloc/Provider機能
 
-- **authSlice**: ログイン、登録、認証状態管理
-- **userSlice**: ユーザープロフィール、設定管理
-- **foodSlice**: 食品データベース、検索、お気に入り管理
-- **entrySlice**: 食事記録の作成、取得、更新、削除
-- **weightSlice**: 体重記録の作成、取得、更新、削除
-- **syncSlice**: オフライン時のデータ同期状態管理
+- **AuthBloc/Provider**: ログイン、登録、認証状態管理
+- **UserBloc/Provider**: ユーザープロフィール、設定管理
+- **FoodBloc/Provider**: 食品データベース、検索、お気に入り管理
+- **EntryBloc/Provider**: 食事記録の作成、取得、更新、削除
+- **WeightBloc/Provider**: 体重記録の作成、取得、更新、削除
+- **SyncBloc/Provider**: オフライン時のデータ同期状態管理
 
 ### 6.3 カスタムフック
 
@@ -367,19 +388,19 @@ store/
 ### 7.1 全体データフロー
 
 ```
-[ユーザー操作] → [React コンポーネント] → [Redux アクション] → [Redux ミドルウェア]
-                                                                    ↓
-[UI 更新] ← [React コンポーネント] ← [Redux セレクタ] ← [Redux ストア] ← [Redux リデューサー]
-                                                                    ↓
-                                                              [サービスレイヤー]
-                                                                    ↓
-                                                              [ローカルDB / API]
+[ユーザー操作] → [Flutter ウィジェット] → [Bloc イベント] → [Bloc]
+                                                          ↓
+[UI 更新] ← [Flutter ウィジェット] ← [Bloc 状態] ← [Bloc] ← [リポジトリ]
+                                                          ↓
+                                                    [サービスレイヤー]
+                                                          ↓
+                                                    [ローカルDB / API]
 ```
 
 ### 7.2 オフラインファーストアプローチ
 
 1. **ローカルデータベース優先**:
-   - すべてのデータはまずローカルデータベース（Realm）に保存
+   - すべてのデータはまずローカルデータベース（SQLite）に保存
    - UIはローカルデータベースから直接データを取得・表示
    - ネットワーク接続の有無に関わらず一貫した操作性を提供
 
@@ -397,7 +418,7 @@ store/
 
 ### 8.1 ローカルデータベース設計
 
-#### 8.1.1 Realmスキーマ
+#### 8.1.1 SQLiteスキーマ
 
 - **User**: ユーザー情報（ID、名前、メール、身長、目標体重、目標カロリー）
 - **Food**: 食品データ（ID、名前、カロリー、単位、カテゴリ、お気に入り状態）
@@ -417,13 +438,13 @@ store/
 
 ### 9.1 メモ化
 
-- **useMemo/useCallback**: 計算コストの高い処理の最適化
-- **React.memo**: 不要な再レンダリングの防止
-- **セレクタの最適化**: Reduxセレクタのメモ化
+- **const Constructors**: 不変ウィジェットの最適化
+- **StatelessWidget**: 状態を持たないウィジェットの使用
+- **BuildContext.select**: 必要な状態変更のみを監視
 
 ### 9.2 仮想化リスト
 
-- **FlatList最適化**: 大量データの効率的な表示
+- **ListView.builder**: 大量データの効率的な表示
 - **ページネーション**: 必要なデータのみの読み込み
 - **遅延読み込み**: 画面外のコンテンツの遅延読み込み
 
@@ -435,17 +456,17 @@ store/
 
 ### 9.4 アプリ起動最適化
 
-- **スプラッシュスクリーン**: ネイティブスプラッシュスクリーンを実装
+- **スプラッシュスクリーン**: Flutter native splash を使用したスプラッシュスクリーン実装
 - **初期ロード最適化**: 必要最小限のデータのみを初期ロード時に取得
-- **コード分割**: 動的インポートによる初期バンドルサイズの削減
+- **コンパイル最適化**: AOT (Ahead-of-Time) コンパイルによるパフォーマンス向上
 
 ## 10. テスト戦略
 
 ### 10.1 テスト種別
 
-- **単体テスト**: 個々のコンポーネントとフックのテスト
-- **統合テスト**: 複数のコンポーネントの連携テスト
-- **E2Eテスト**: ユーザーフローの全体テスト
+- **単体テスト**: 個々のウィジェットとサービスのテスト (flutter_test)
+- **統合テスト**: 複数のウィジェットの連携テスト (integration_test)
+- **E2Eテスト**: ユーザーフローの全体テスト (flutter_driver)
 
 ### 10.2 テストカバレッジ目標
 
@@ -497,7 +518,7 @@ store/
 
 ### 12.2 データ保護
 
-- **ローカルデータ暗号化**: Realmデータベースの暗号化
+- **ローカルデータ暗号化**: SQLiteデータベースの暗号化
 - **通信暗号化**: HTTPS通信の強制
 - **機密情報の保護**: APIキーなどの機密情報の安全な管理
 
@@ -528,6 +549,6 @@ store/
 
 本設計書では、カロリー管理アプリ「ずぼらカロリー」のフロントエンド部分の詳細設計を定義した。「ずぼらでもカロリー管理できる」というコンセプトに基づき、シンプルで直感的なUI、高速なレスポンス、オフラインファーストなアプローチ、アクセシビリティへの配慮を重視した設計となっている。
 
-React NativeとTypeScriptを基盤とし、Redux Toolkitによる状態管理、Realmによるローカルデータベース、そしてモジュール化されたコンポーネント設計により、保守性と拡張性の高いアプリケーションを実現する。
+FlutterとDartを基盤とし、Provider/Blocによる状態管理、SQLiteによるローカルデータベース、そしてモジュール化されたウィジェット設計により、保守性と拡張性の高いアプリケーションを実現する。
 
 本設計に基づき実装を進めることで、ユーザーにとって使いやすく、継続的に利用できるカロリー管理アプリを提供することが可能となる。
