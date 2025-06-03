@@ -34,7 +34,7 @@
                     v
 +------------------------------------------+
 |           ローカルデータベース             |
-|          (SQLite / Realm)               |
+|          (SQLite)                       |
 +------------------------------------------+
                     |
                     | オプショナル同期
@@ -59,7 +59,7 @@
 |                  |                       |
 | +----------------------------------+     |
 | |        データベース               |     |
-| | (PostgreSQL / MongoDB)          |     |
+| | (Firebase Firestore)            |     |
 | +----------------------------------+     |
 +------------------------------------------+
 ```
@@ -75,19 +75,18 @@
   - 型ヒントによる堅牢性
 
 #### 2.2.2 データベース
-- **ローカル**: SQLite / Realm
-- **クラウド**: PostgreSQL
+- **ローカル**: SQLite
+- **クラウド**: Firebase Firestore
 - **選定理由**:
   - SQLite: 組み込みデータベースとして軽量で信頼性が高い
-  - Realm: モバイル向け最適化とオフラインファーストアプローチ
-  - PostgreSQL: 関係データの堅牢な管理と拡張性
+  - Firebase Firestore: リアルタイム同期、スケーラビリティ、NoSQLの柔軟性
 
 #### 2.2.3 認証
-- **選定技術**: JWT (JSON Web Tokens)
+- **選定技術**: Firebase Authentication
 - **選定理由**:
-  - ステートレス認証
-  - クロスプラットフォーム互換性
-  - スケーラビリティ
+  - マルチプラットフォーム対応
+  - 複数の認証プロバイダーサポート
+  - Firestoreとの統合の容易さ
 
 #### 2.2.4 API設計
 - **選定アプローチ**: RESTful API + OpenAPI仕様
@@ -233,17 +232,17 @@
 ### 3.3 データベースマイグレーション戦略
 
 #### 3.3.1 マイグレーションツール
-- **選定ツール**: Alembic
-- **選定理由**: SQLAlchemyとの統合、バージョン管理、ロールバック機能
+- **選定ツール**: Firebase Admin SDK
+- **選定理由**: Firestoreとの統合、スクリプトベースの移行、バッチ処理サポート
 
 #### 3.3.2 マイグレーションプロセス
-1. 初期スキーマ作成
-2. 変更検出と自動マイグレーションスクリプト生成
-3. マイグレーション実行とバージョン管理
-4. 必要に応じたロールバック
+1. 初期コレクション構造の定義
+2. スクリプトベースのデータ変換
+3. バッチ処理による効率的な移行
+4. 必要に応じたバックアップと復元
 
 #### 3.3.3 データ移行戦略
-- スキーマ変更時のデータ保持
+- ドキュメント構造変更時のデータ変換
 - バージョン間の互換性維持
 - 段階的なデータ変換
 
@@ -254,7 +253,7 @@
 #### 4.1.1 基本情報
 - **ベースURL**: `/api/v1`
 - **フォーマット**: JSON
-- **認証方式**: JWT Bearer Token
+- **認証方式**: Firebase Authentication
 - **エラーレスポンス形式**:
   ```json
   {
@@ -1074,10 +1073,9 @@ backend/
 │       ├── __init__.py
 │       ├── date_utils.py
 │       └── validation.py
-├── alembic/                    # マイグレーション
-│   ├── versions/
-│   ├── env.py
-│   └── alembic.ini
+├── migrations/                 # データ移行スクリプト
+│   ├── __init__.py
+│   └── migrate.py
 ├── tests/                      # テスト
 │   ├── __init__.py
 │   ├── conftest.py
@@ -1140,26 +1138,22 @@ def root():
 ```python
 # app/core/security.py
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
-from jose import jwt
+from firebase_admin import auth
 from passlib.context import CryptContext
 
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:
-    """JWTアクセストークンの生成"""
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-    to_encode = {"exp": expire, "sub": subject}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+def create_custom_token(uid: str, additional_claims: Optional[Dict[str, Any]] = None) -> str:
+    """Firebase カスタムトークンの生成"""
+    return auth.create_custom_token(uid, additional_claims)
+
+def verify_id_token(id_token: str) -> Dict[str, Any]:
+    """Firebase IDトークンの検証"""
+    return auth.verify_id_token(id_token)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """パスワード検証"""
@@ -1174,29 +1168,53 @@ def get_password_hash(password: str) -> str:
 
 ```python
 # app/models/food_entry.py
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Date, Text, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from datetime import datetime, date
+from typing import Dict, Any, Optional
+from uuid import uuid4
 
-from app.db.base_class import Base
-
-class FoodEntry(Base):
-    __tablename__ = "food_entries"
-
-    entry_id = Column(String(36), primary_key=True, index=True)
-    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False)
-    food_id = Column(String(36), ForeignKey("foods.food_id"), nullable=False)
-    date = Column(Date, nullable=False, index=True)
-    quantity = Column(Float, nullable=False, default=1.0)
-    meal_type = Column(String(20), nullable=False)
-    calories = Column(Integer, nullable=False)
-    note = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    # リレーションシップ
-    user = relationship("User", back_populates="food_entries")
-    food = relationship("Food", back_populates="entries")
+class FoodEntry:
+    """
+    食事記録のFirestoreドキュメントモデル
+    
+    Firestoreドキュメント構造:
+    {
+        "entry_id": str,        # 記録ID (UUID)
+        "user_id": str,         # ユーザーID
+        "food_id": str,         # 食品ID
+        "date": timestamp,      # 記録日
+        "quantity": float,      # 数量
+        "meal_type": str,       # 食事タイプ
+        "calories": int,        # カロリー
+        "note": str,            # メモ (オプション)
+        "created_at": timestamp,# 作成日時
+        "updated_at": timestamp # 更新日時
+    }
+    """
+    
+    @staticmethod
+    def create_document(
+        user_id: str,
+        food_id: str,
+        date_value: date,
+        quantity: float,
+        meal_type: str,
+        calories: int,
+        note: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """新しい食事記録ドキュメントを作成"""
+        now = datetime.utcnow()
+        return {
+            "entry_id": str(uuid4()),
+            "user_id": user_id,
+            "food_id": food_id,
+            "date": date_value,
+            "quantity": quantity,
+            "meal_type": meal_type,
+            "calories": calories,
+            "note": note,
+            "created_at": now,
+            "updated_at": now
+        }
 ```
 
 #### 5.2.4 スキーマ実装例
@@ -1248,81 +1266,115 @@ class FoodEntryResponse(BaseModel):
     note: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-    class Config:
-        orm_mode = True
 ```
 
 #### 5.2.5 CRUD操作実装例
 
 ```python
 # app/crud/food_entry.py
-from datetime import date
-from typing import List, Optional
+from datetime import date, datetime
+from typing import List, Optional, Dict, Any
 from uuid import uuid4
 
-from sqlalchemy.orm import Session
+from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
+from app.db.firebase import db
 from app.models.food_entry import FoodEntry
 from app.schemas.food_entry import FoodEntryCreate, FoodEntryUpdate
 
-def get_by_id(db: Session, entry_id: str) -> Optional[FoodEntry]:
+def get_by_id(entry_id: str) -> Optional[Dict[str, Any]]:
     """IDによる食事記録取得"""
-    return db.query(FoodEntry).filter(FoodEntry.entry_id == entry_id).first()
+    doc_ref = db.collection('food_entries').document(entry_id)
+    doc = doc_ref.get()
+    return doc.to_dict() if doc.exists else None
 
-def get_by_user_and_date(db: Session, user_id: str, date: date) -> List[FoodEntry]:
+def get_by_user_and_date(user_id: str, date_value: date) -> List[Dict[str, Any]]:
     """ユーザーIDと日付による食事記録取得"""
-    return db.query(FoodEntry).filter(
-        FoodEntry.user_id == user_id,
-        FoodEntry.date == date
-    ).all()
+    # Firestoreでは日付をDatetime型として保存
+    start_date = datetime.combine(date_value, datetime.min.time())
+    end_date = datetime.combine(date_value, datetime.max.time())
+    
+    entries = []
+    query = (db.collection('food_entries')
+             .where(filter=FieldFilter('user_id', '==', user_id))
+             .where(filter=FieldFilter('date', '>=', start_date))
+             .where(filter=FieldFilter('date', '<=', end_date)))
+    
+    for doc in query.stream():
+        entries.append(doc.to_dict())
+    return entries
 
 def get_by_user_and_date_range(
-    db: Session, user_id: str, start_date: date, end_date: date
-) -> List[FoodEntry]:
+    user_id: str, start_date: date, end_date: date
+) -> List[Dict[str, Any]]:
     """ユーザーIDと日付範囲による食事記録取得"""
-    return db.query(FoodEntry).filter(
-        FoodEntry.user_id == user_id,
-        FoodEntry.date >= start_date,
-        FoodEntry.date <= end_date
-    ).all()
+    # Firestoreでは日付をDatetime型として保存
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    end_datetime = datetime.combine(end_date, datetime.max.time())
+    
+    entries = []
+    query = (db.collection('food_entries')
+             .where(filter=FieldFilter('user_id', '==', user_id))
+             .where(filter=FieldFilter('date', '>=', start_datetime))
+             .where(filter=FieldFilter('date', '<=', end_datetime)))
+    
+    for doc in query.stream():
+        entries.append(doc.to_dict())
+    return entries
 
-def create(db: Session, obj_in: FoodEntryCreate, user_id: str, calories: int) -> FoodEntry:
+def create(obj_in: FoodEntryCreate, user_id: str, calories: int) -> Dict[str, Any]:
     """食事記録作成"""
-    entry_id = str(uuid4())
-    db_obj = FoodEntry(
-        entry_id=entry_id,
+    # FoodEntryモデルを使用してドキュメントデータを作成
+    entry_data = FoodEntry.create_document(
         user_id=user_id,
         food_id=obj_in.food_id,
-        date=obj_in.date,
+        date_value=obj_in.date,
         quantity=obj_in.quantity,
         meal_type=obj_in.meal_type,
         calories=calories,
         note=obj_in.note
     )
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    
+    # Firestoreにドキュメントを追加
+    doc_ref = db.collection('food_entries').document(entry_data['entry_id'])
+    doc_ref.set(entry_data)
+    return entry_data
 
-def update(db: Session, db_obj: FoodEntry, obj_in: FoodEntryUpdate, calories: Optional[int] = None) -> FoodEntry:
+def update(entry_id: str, obj_in: FoodEntryUpdate, calories: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """食事記録更新"""
+    # 現在のドキュメントを取得
+    doc_ref = db.collection('food_entries').document(entry_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        return None
+        
+    # 更新データの準備
     update_data = obj_in.dict(exclude_unset=True)
     if calories is not None:
         update_data["calories"] = calories
     
-    for field, value in update_data.items():
-        setattr(db_obj, field, value)
+    # 更新日時を設定
+    update_data["updated_at"] = datetime.utcnow()
     
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    return db_obj
+    # ドキュメント更新
+    doc_ref.update(update_data)
+    
+    # 更新後のドキュメントを返す
+    updated_doc = doc_ref.get()
+    return updated_doc.to_dict()
 
-def delete(db: Session, db_obj: FoodEntry) -> None:
+def delete(entry_id: str) -> bool:
     """食事記録削除"""
-    db.delete(db_obj)
-    db.commit()
+    doc_ref = db.collection('food_entries').document(entry_id)
+    doc = doc_ref.get()
+    
+    if not doc.exists:
+        return False
+        
+    doc_ref.delete()
+    return True
 ```
 
 #### 5.2.6 サービス実装例
@@ -1519,54 +1571,63 @@ def delete_food_entry(
 
 ### 6.1 認証・認可
 
-#### 6.1.1 JWT認証フロー
-1. ユーザーがログイン情報を送信
-2. サーバーが認証情報を検証
-3. 認証成功時、アクセストークンとリフレッシュトークンを発行
-4. クライアントは以降のリクエストにアクセストークンを付与
-5. トークン期限切れ時はリフレッシュトークンで更新
+#### 6.1.1 Firebase Authentication認証フロー
+1. ユーザーがFirebase Authenticationを使用してログイン
+2. 認証成功時、Firebaseがクライアントに認証トークンを発行
+3. クライアントは以降のリクエストにFirebase IDトークンを付与
+4. バックエンドはFirebase Admin SDKでトークンを検証
+5. トークン期限切れ時はFirebaseが自動的に更新
 
 #### 6.1.2 認証ミドルウェア実装
 
 ```python
 # app/api/deps.py
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
-from sqlalchemy.orm import Session
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from firebase_admin import auth, credentials, initialize_app
+import firebase_admin
 
 from app.core.config import settings
-from app.core.security import ALGORITHM
 from app.crud import user as crud_user
-from app.db.session import get_db
-from app.models.user import User
+from app.db.firebase import db
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+# Firebase初期化
+cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+firebase_app = initialize_app(cred)
+
+# セキュリティスキーム
+security = HTTPBearer()
 
 def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
-) -> User:
-    """現在のユーザーを取得"""
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """Firebase認証トークンからユーザーを取得"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="認証情報が無効です",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[ALGORITHM]
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
+        # Firebaseトークン検証
+        token = credentials.credentials
+        decoded_token = auth.verify_id_token(token)
+        uid = decoded_token.get("uid")
+        
+        if not uid:
             raise credentials_exception
-    except JWTError:
+            
+        # Firestoreからユーザー情報取得
+        user_ref = db.collection('users').document(uid)
+        user = user_ref.get()
+        
+        if not user.exists:
+            raise credentials_exception
+            
+        return user.to_dict()
+        
+    except Exception:
         raise credentials_exception
-    
-    user = crud_user.get_by_id(db, user_id)
-    if user is None:
-        raise credentials_exception
-    
-    return user
 ```
 
 ### 6.2 データ保護
@@ -1659,32 +1720,27 @@ async def add_security_headers(request, call_next):
       return db.query(model).filter_by(**filters).offset(skip).limit(limit).all()
   ```
 
-#### 7.1.3 コネクションプーリング
-- データベース接続の再利用
-- 適切なプールサイズ設定
+#### 7.1.3 Firebase Firestoreクライアント初期化
+- Firestoreクライアントの初期化と管理
+- 適切な接続設定
   ```python
-  # app/db/session.py
-  from sqlalchemy import create_engine
-  from sqlalchemy.orm import sessionmaker
+  # app/db/firebase.py
+  import firebase_admin
+  from firebase_admin import credentials, firestore
   
   from app.core.config import settings
   
-  engine = create_engine(
-      settings.DATABASE_URI,
-      pool_size=settings.DB_POOL_SIZE,
-      max_overflow=settings.DB_MAX_OVERFLOW,
-      pool_timeout=settings.DB_POOL_TIMEOUT,
-      pool_recycle=settings.DB_POOL_RECYCLE
-  )
+  # Firebase初期化（まだ初期化されていない場合）
+  if not firebase_admin._apps:
+      cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
+      firebase_admin.initialize_app(cred)
   
-  SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+  # Firestoreクライアント
+  db = firestore.client()
   
   def get_db():
-      db = SessionLocal()
-      try:
-          yield db
-      finally:
-          db.close()
+      """Firestoreクライアントを取得"""
+      return db
   ```
 - コネクションタイムアウト管理
 
@@ -1918,7 +1974,7 @@ def client(db_session):
 
 #### 9.1.2 テスト環境
 - CI/CD環境
-- テスト用PostgreSQLデータベース
+- Firebase Emulator Suite
 - テストスイート実行
 
 #### 9.1.3 ステージング環境
@@ -1928,7 +1984,7 @@ def client(db_session):
 
 #### 9.1.4 本番環境
 - 高可用性構成
-- PostgreSQLデータベース
+- Firebase Firestoreデータベース
 - CDNキャッシュ
 - 監視・アラート
 
@@ -1949,8 +2005,7 @@ COPY ./requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 
 COPY ./app /app/app
-COPY ./alembic /app/alembic
-COPY ./alembic.ini /app/alembic.ini
+COPY ./migrations /app/migrations
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
@@ -2111,7 +2166,7 @@ def init_metrics(port=8001):
    - スケーラブルな設計
 
 4. **セキュリティとプライバシー**：
-   - JWTベースの認証
+   - Firebase Authenticationによる認証
    - データ暗号化
    - 最小権限の原則
 
