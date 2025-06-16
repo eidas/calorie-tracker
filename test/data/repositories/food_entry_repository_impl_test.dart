@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:calorie_tracker/database/database_helper.dart';
-import 'package:calorie_tracker/data/repositories/food_entry_repository_impl.dart';
-import 'package:calorie_tracker/domain/entities/food_entry.dart';
+import 'package:zubora_calorie/database/database_helper.dart';
+import 'package:zubora_calorie/data/repositories/food_entry_repository_impl.dart';
+import 'package:zubora_calorie/domain/entities/food_entry.dart';
 
 void main() {
   late DatabaseHelper databaseHelper;
