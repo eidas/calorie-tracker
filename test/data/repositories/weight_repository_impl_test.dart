@@ -33,7 +33,7 @@ void main() {
     });
   });
 
-  tearDown() async {
+  tearDown(() async {
     await databaseHelper.closeDatabase();
   });
 
@@ -52,7 +52,7 @@ void main() {
 
       await weightRepository.saveWeightRecord(weightRecord);
       
-      final record = await weightRepository.getWeightRecordByDate('test-user', now);
+      final record = await weightRepository.getWeightRecordByDate(now);
       expect(record, isNotNull);
       expect(record!.weight, equals(68.5));
       expect(record.note, equals('Morning weight'));
@@ -92,9 +92,9 @@ void main() {
       }
       
       final averageWeight = await weightRepository.getAverageWeight(
-        'test-user',
-        today.subtract(const Duration(days: 2)),
-        today,
+        userId: 'test-user',
+        startDate: today.subtract(const Duration(days: 2)),
+        endDate: today,
       );
       
       expect(averageWeight, equals(69.0));
