@@ -80,12 +80,12 @@ void main() {
         updatedAt: DateTime.now(),
       );
 
-      final existsBefore = await userRepository.userExistsByEmail('test@example.com');
+      final existsBefore = await userRepository.emailExists('test@example.com');
       expect(existsBefore, isFalse);
       
       await userRepository.saveUser(user);
       
-      final existsAfter = await userRepository.userExistsByEmail('test@example.com');
+      final existsAfter = await userRepository.emailExists('test@example.com');
       expect(existsAfter, isTrue);
     });
   });

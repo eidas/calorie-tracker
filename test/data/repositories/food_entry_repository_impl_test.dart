@@ -104,7 +104,7 @@ void main() {
         await foodEntryRepository.saveFoodEntry(entry);
       }
       
-      final totalCalories = await foodEntryRepository.getTotalCaloriesForDate(now);
+      final totalCalories = await foodEntryRepository.getTotalCaloriesByDate(now);
       expect(totalCalories, equals(300));
     });
   });
